@@ -1,0 +1,369 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>EcoRoute Delhi — Municipal Sustainability Dashboard</title>
+  <script src="https://cdn.tailwindcss.com"></script>
+  <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" integrity="sha256-p4NxAoJBhIIN+hmNHrzRCf9tD/miZyoHS5obTRR9BMY=" crossorigin=""/>
+  <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js" integrity="sha256-20nQCchB9co0qIjJZRGuk2/Z9VM+kNiyxNV1lvTlZBo=" crossorigin=""></script>
+  <style>
+    #map { height: 420px; width: 100%; border-radius: 0.85rem; z-index: 10; }
+    #dash-map { height: 260px; width: 100%; border-radius: 0.75rem; z-index: 10; }
+  </style>
+</head>
+<body class="bg-[#fcfbf9] text-stone-800 min-h-screen font-sans flex antialiased">
+
+  <aside class="w-64 bg-[#11221c] text-stone-300 flex-col justify-between hidden md:flex shrink-0 shadow-lg border-r border-stone-800">
+    <div class="p-6 space-y-8">
+      <div class="flex items-center gap-3">
+        <div class="w-9 h-9 bg-emerald-700/80 rounded-xl flex items-center justify-center font-bold text-base text-white">ER</div>
+        <div>
+          <h1 class="font-semibold text-base tracking-tight text-white">EcoRoute Delhi</h1>
+          <p class="text-[11px] text-emerald-400 font-medium">Ward Analytics</p>
+        </div>
+      </div>
+      <nav class="space-y-1">
+        <button onclick="switchTab('dashboard')" id="nav-dashboard" class="w-full flex items-center gap-3 px-4 py-2.5 rounded-xl font-medium text-xs text-left transition">Dashboard</button>
+        <button onclick="switchTab('map')" id="nav-map" class="w-full flex items-center gap-3 px-4 py-2.5 rounded-xl font-medium text-xs text-left transition">GIS Map</button>
+        <button onclick="switchTab('calculator')" id="nav-calculator" class="w-full flex items-center gap-3 px-4 py-2.5 rounded-xl font-medium text-xs text-left transition">Eco Score Calculator</button>
+        <button onclick="switchTab('about')" id="nav-about" class="w-full flex items-center gap-3 px-4 py-2.5 rounded-xl font-medium text-xs text-left transition">About Project</button>
+      </nav>
+    </div>
+    <div class="p-6 border-t border-stone-800/80 text-[11px] text-stone-400 space-y-0.5">
+      <p class="font-medium text-stone-200">Hackathon Prototype</p>
+      <p>Synthetic demo data — not real measurements</p>
+    </div>
+  </aside>
+
+  <main class="flex-1 flex flex-col h-screen overflow-y-auto">
+
+    <header class="bg-white/80 backdrop-blur-md border-b border-stone-200/80 px-8 py-4 flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4 sticky top-0 z-30">
+      <div>
+        <h2 class="text-xl font-bold text-stone-900 tracking-tight">Municipal Waste Fleet Optimizer</h2>
+        <p class="text-xs text-stone-500 mt-0.5">Comparative transport analysis between Vasant Kunj and Lajpat Nagar.</p>
+      </div>
+      <div class="flex items-center gap-4">
+        <div onclick="switchTab('calculator')" class="cursor-pointer bg-emerald-50 hover:bg-emerald-100/70 border border-emerald-200/80 px-4 py-2 rounded-full flex items-center gap-2.5 transition shadow-sm">
+          <span class="w-2 h-2 rounded-full bg-emerald-500 animate-pulse"></span>
+          <span class="text-xs font-semibold text-emerald-900">Ward Eco Score: <span id="header-score">78</span>/100</span>
+        </div>
+        <div class="w-9 h-9 bg-stone-900 text-white rounded-full flex items-center justify-center font-bold text-xs">NV</div>
+      </div>
+    </header>
+
+    <!-- Demo data disclaimer (visible on every tab) -->
+    <div class="bg-amber-50 border-b border-amber-200 px-8 py-2 text-[11px] text-amber-900 sticky top-[73px] z-20">
+      <b>Prototype notice:</b> Area names are used for illustration only. All figures, boundaries and routes shown here are <b>synthetic sample data</b> created for a hackathon demo. They are not official data, and this project is not affiliated with any government body.
+    </div>
+
+    <!-- Mobile nav -->
+    <div class="md:hidden flex gap-2 px-4 pt-4 overflow-x-auto text-xs">
+      <button onclick="switchTab('dashboard')" class="px-3 py-1.5 rounded-lg bg-[#11221c] text-white shrink-0">Dashboard</button>
+      <button onclick="switchTab('map')" class="px-3 py-1.5 rounded-lg bg-[#11221c] text-white shrink-0">GIS Map</button>
+      <button onclick="switchTab('calculator')" class="px-3 py-1.5 rounded-lg bg-[#11221c] text-white shrink-0">Calculator</button>
+      <button onclick="switchTab('about')" class="px-3 py-1.5 rounded-lg bg-[#11221c] text-white shrink-0">About</button>
+    </div>
+
+    <!-- TAB 1: DASHBOARD -->
+    <div id="view-dashboard" class="p-8 space-y-6 max-w-7xl mx-auto w-full">
+      <div class="grid grid-cols-1 lg:grid-cols-12 gap-6">
+
+        <div class="lg:col-span-5 bg-white border border-stone-200/80 rounded-2xl p-5 space-y-4 shadow-sm">
+          <h3 class="font-semibold text-stone-800 text-xs uppercase tracking-wider">Select Ward Corridor</h3>
+          <div class="flex gap-2">
+            <select id="zone-select" class="flex-1 bg-stone-50 border border-stone-300 rounded-xl px-3 py-2 text-xs font-medium focus:outline-none focus:ring-2 focus:ring-emerald-600 text-stone-800" onchange="runSimulation()">
+              <option value="Vasant Kunj">Vasant Kunj (Zone A)</option>
+              <option value="Lajpat Nagar">Lajpat Nagar (Zone B)</option>
+            </select>
+            <button onclick="runSimulation()" id="run-btn" class="bg-emerald-900 hover:bg-emerald-950 text-white px-4 py-2 rounded-xl text-xs font-medium shadow-sm transition">Simulate</button>
+          </div>
+          <div class="relative border border-stone-200 rounded-xl overflow-hidden shadow-inner bg-stone-100">
+            <div id="dash-map"></div>
+            <div class="absolute top-3 left-3 z-20 bg-white/95 px-3 py-1 rounded-lg text-[11px] font-semibold text-stone-800 shadow-sm pointer-events-none" id="map-zone-label">Vasant Kunj (Active)</div>
+          </div>
+          <p class="text-[10px] text-stone-400">Boundary and route are illustrative, not official geometry.</p>
+        </div>
+
+        <div class="lg:col-span-7 space-y-6">
+          <div class="bg-white border border-stone-200/80 rounded-2xl p-5 space-y-4 shadow-sm">
+            <div class="flex flex-wrap gap-2 justify-between items-center">
+              <h3 class="font-semibold text-stone-800 text-xs uppercase tracking-wider">Transport Performance Metrics</h3>
+              <div class="flex bg-stone-100 p-1 rounded-xl text-xs font-medium">
+                <button onclick="setStrategy('Baseline')" id="tab-Baseline" class="px-3 py-1.5 rounded-lg transition">Baseline</button>
+                <button onclick="setStrategy('Optimised')" id="tab-Optimised" class="px-3 py-1.5 rounded-lg transition">Optimised</button>
+                <button onclick="setStrategy('Decentralised')" id="tab-Decentralised" class="px-3 py-1.5 rounded-lg transition">Decentralised</button>
+              </div>
+            </div>
+            <div class="grid grid-cols-2 sm:grid-cols-5 gap-3 pt-1" id="metric-cards"></div>
+          </div>
+
+          <div class="bg-white border border-stone-200/80 rounded-2xl p-5 space-y-4 shadow-sm">
+            <div class="flex flex-wrap gap-2 justify-between items-center">
+              <h3 class="font-semibold text-stone-800 text-xs uppercase tracking-wider">Strategy Comparison (relative to baseline)</h3>
+              <div class="flex items-center gap-3 text-[11px] font-medium text-stone-500">
+                <span class="flex items-center gap-1.5"><span class="w-2 h-2 rounded-full bg-stone-400"></span> Baseline</span>
+                <span class="flex items-center gap-1.5"><span class="w-2 h-2 rounded-full bg-emerald-700"></span> Optimised</span>
+                <span class="flex items-center gap-1.5"><span class="w-2 h-2 rounded-full bg-amber-600"></span> Decentralised</span>
+              </div>
+            </div>
+            <div class="grid grid-cols-5 gap-4 pt-3 border-t border-stone-100 text-center" id="bar-chart"></div>
+          </div>
+        </div>
+      </div>
+
+      <div class="bg-[#11221c] text-stone-100 rounded-2xl p-6 flex flex-col sm:flex-row justify-between items-center gap-4 shadow-sm mb-8">
+        <div class="space-y-1">
+          <span class="text-[10px] font-semibold text-emerald-400 uppercase tracking-widest bg-emerald-950/80 px-2.5 py-1 rounded-md">Key Recommendation</span>
+          <h4 class="text-sm font-bold text-white mt-1">Decentralised Wet Waste Processing + Compactor Hub</h4>
+          <p class="text-xs text-stone-300">In this simulation, transport CO₂ drops by about 43% in both sample corridors.</p>
+        </div>
+        <button onclick="switchTab('calculator')" class="bg-emerald-700 hover:bg-emerald-800 text-white px-4 py-2 rounded-xl text-xs font-medium shadow-sm transition shrink-0">Calculate Impact →</button>
+      </div>
+    </div>
+
+    <!-- TAB 2: GIS MAP -->
+    <div id="view-map" class="p-8 space-y-6 max-w-7xl mx-auto w-full hidden">
+      <div class="bg-white border border-stone-200/80 rounded-2xl p-6 space-y-6 shadow-sm">
+        <div class="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4">
+          <div>
+            <h3 class="font-bold text-stone-900 text-base">Geographic Information System (GIS) Viewer</h3>
+            <p class="text-xs text-stone-500">Real OpenStreetMap base map with illustrative overlays.</p>
+          </div>
+          <button onclick="switchTab('dashboard')" class="text-xs bg-stone-100 hover:bg-stone-200 text-stone-700 px-3 py-1.5 rounded-xl font-medium transition">← Back to Dashboard</button>
+        </div>
+        <div class="w-full border border-stone-200 rounded-xl overflow-hidden shadow-inner bg-stone-100"><div id="map"></div></div>
+        <div class="space-y-3">
+          <h4 class="font-semibold text-stone-800 text-xs uppercase tracking-wider">Zone Attribute Table (synthetic data)</h4>
+          <div class="border border-stone-200 rounded-xl overflow-x-auto shadow-sm">
+            <table class="w-full text-left border-collapse text-xs">
+              <thead>
+                <tr class="bg-stone-50 text-stone-600 font-semibold border-b border-stone-200">
+                  <th class="p-3">Zone ID</th><th class="p-3">Zone Name</th><th class="p-3">Waste Load (T/day)</th><th class="p-3">Segregation Rate</th><th class="p-3">Designated Hub / Plant</th><th class="p-3">Status</th>
+                </tr>
+              </thead>
+              <tbody class="divide-y divide-stone-100 text-stone-600">
+                <tr><td class="p-3 font-semibold text-stone-900">Zone A</td><td class="p-3">Vasant Kunj</td><td class="p-3">45.2</td><td class="p-3"><span class="bg-emerald-100/80 text-emerald-900 px-2 py-0.5 rounded font-medium">78%</span></td><td class="p-3">Okhla WTE & MRF</td><td class="p-3 text-amber-700 font-medium">Simulated</td></tr>
+                <tr><td class="p-3 font-semibold text-stone-900">Zone B</td><td class="p-3">Lajpat Nagar</td><td class="p-3">38.5</td><td class="p-3"><span class="bg-emerald-100/80 text-emerald-900 px-2 py-0.5 rounded font-medium">82%</span></td><td class="p-3">Okhla Transfer Station</td><td class="p-3 text-amber-700 font-medium">Simulated</td></tr>
+              </tbody>
+            </table>
+          </div>
+          <p class="text-[10px] text-stone-400">Zone IDs, waste loads, segregation rates and hub assignments are synthetic placeholders, not official figures.</p>
+        </div>
+      </div>
+    </div>
+
+    <!-- TAB 3: CALCULATOR -->
+    <div id="view-calculator" class="p-8 space-y-6 max-w-4xl mx-auto w-full hidden">
+      <div class="bg-white border border-stone-200/80 rounded-2xl p-8 space-y-6 shadow-sm">
+        <div>
+          <h3 class="text-xl font-bold text-stone-900">Ward Sustainability Calculator</h3>
+          <p class="text-stone-500 text-xs mt-0.5">Explore how segregation, transport strategy and EV adoption influence a simple illustrative eco score.</p>
+        </div>
+        <div class="grid grid-cols-1 md:grid-cols-2 gap-6">
+          <div class="space-y-4 bg-stone-50/60 p-6 rounded-2xl border border-stone-200/80">
+            <div>
+              <label class="block text-xs font-semibold text-stone-700">Source Segregation Rate (%)</label>
+              <input type="range" id="calc-seg" min="10" max="95" value="75" oninput="calculateEcoScore()" class="w-full mt-2 accent-emerald-800 cursor-pointer">
+              <div class="text-xs text-stone-500 mt-1"><span id="val-seg">75</span>% sorted at source</div>
+            </div>
+            <div>
+              <label class="block text-xs font-semibold text-stone-700">Transport Strategy</label>
+              <select id="calc-strat" onchange="calculateEcoScore()" class="w-full mt-2 bg-white border border-stone-300 rounded-xl px-3 py-2 text-xs font-medium focus:ring-2 focus:ring-emerald-700">
+                <option value="1.0">Baseline Long-Haul Trucking</option>
+                <option value="1.3">Optimised Dynamic Routing</option>
+                <option value="1.6" selected>Decentralised Wet Waste + Compactor Hub</option>
+              </select>
+            </div>
+            <div>
+              <label class="block text-xs font-semibold text-stone-700">Electric Fleet Adoption (%)</label>
+              <input type="range" id="calc-ev" min="0" max="100" value="40" oninput="calculateEcoScore()" class="w-full mt-2 accent-emerald-800 cursor-pointer">
+              <div class="text-xs text-stone-500 mt-1"><span id="val-ev">40</span>% EV Compactors</div>
+            </div>
+          </div>
+          <div class="bg-[#11221c] text-stone-100 p-6 rounded-2xl flex flex-col gap-4 justify-between items-center text-center shadow-md">
+            <div>
+              <p class="text-[10px] font-semibold text-emerald-400 uppercase tracking-widest">Calculated Eco Score</p>
+              <div class="text-5xl font-black text-white mt-3 tracking-tight"><span id="score-display">78</span><span class="text-xl text-stone-400 font-normal">/100</span></div>
+            </div>
+            <div class="w-full bg-stone-900/60 p-3.5 rounded-xl border border-stone-800 text-left space-y-1 text-xs">
+              <p class="font-semibold text-stone-300 text-[11px]">Score Calculation:</p>
+              <p class="text-stone-400">• Segregation points (rate × 0.4): <span id="out-base">30</span></p>
+              <p class="text-stone-400">• Strategy points: +<span id="out-strat">40</span></p>
+              <p class="text-stone-400">• EV points (adoption × 0.2): +<span id="out-ev">8</span></p>
+            </div>
+            <button onclick="switchTab('dashboard')" class="w-full bg-emerald-700 hover:bg-emerald-800 text-white py-2.5 rounded-xl font-medium text-xs shadow-sm transition">Back to Dashboard →</button>
+          </div>
+        </div>
+        <p class="text-[10px] text-stone-400">The scoring formula is a simple illustrative model, not an official or validated sustainability index.</p>
+      </div>
+    </div>
+
+    <!-- TAB 4: ABOUT -->
+    <div id="view-about" class="p-8 space-y-6 max-w-3xl mx-auto w-full hidden">
+      <div class="bg-white border border-stone-200/80 rounded-2xl p-8 space-y-5 shadow-lg">
+        <h3 class="text-xl font-bold text-stone-900">About the Project</h3>
+        <p class="text-stone-600 text-xs leading-relaxed">
+          EcoRoute Delhi is a waste transport optimization prototype designed to help city planners evaluate routing efficiency, fuel reduction, and carbon offset across dense urban areas like Vasant Kunj and Lajpat Nagar.
+        </p>
+        <div class="bg-amber-50 border border-amber-200 rounded-xl p-4 text-xs text-amber-900 leading-relaxed">
+          <b>Data disclaimer:</b> This is a hackathon prototype. All numbers (distance, fuel, CO₂, cost, tonne-km, waste load, segregation rates), boundaries, routes and hub assignments are <b>synthetic sample data</b> used to demonstrate the concept. Area names are used for illustration only. This project is not affiliated with any government body. Only the OpenStreetMap base map is real. With actual data from the relevant authorities, the same dashboard could produce real results.
+        </div>
+      </div>
+    </div>
+
+  </main>
+
+  <script>
+    const ZONE_DATA = {
+      "Vasant Kunj": {
+        dist: [145, 110, 80], fuel: [48, 37, 27], co2: [129, 100, 73], cost: [3840, 2960, 2220], tonne: [1740, 1320, 960],
+        coords: [28.5294, 77.1591],
+        polygon: [[28.5500, 77.1400], [28.5450, 77.1750], [28.5100, 77.1700], [28.5050, 77.1350]],
+        route: [[28.5350, 77.1420], [28.5280, 77.1520], [28.5210, 77.1630], [28.5300, 77.1750]],
+        popupText: "<b>Zone A: Vasant Kunj</b><br>Waste Load: 45.2 T/day (synthetic)<br><i>Illustrative boundary</i>"
+      },
+      "Lajpat Nagar": {
+        dist: [118, 90, 65], fuel: [39, 30, 22], co2: [105, 81, 59], cost: [3100, 2400, 1750], tonne: [1400, 1050, 780],
+        coords: [28.5681, 77.2435],
+        polygon: [[28.5800, 77.2300], [28.5750, 77.2600], [28.5550, 77.2550], [28.5580, 77.2280]],
+        route: [[28.5700, 77.2320], [28.5650, 77.2420], [28.5600, 77.2500], [28.5550, 77.2550]],
+        popupText: "<b>Zone B: Lajpat Nagar</b><br>Waste Load: 38.5 T/day (synthetic)<br><i>Illustrative boundary</i>"
+      }
+    };
+
+    const METRICS = [
+      { key: 'dist',  label: 'Distance',  fmt: v => v + ' km' },
+      { key: 'fuel',  label: 'Fuel Burn', fmt: v => v + ' L' },
+      { key: 'co2',   label: 'CO₂ Output', fmt: v => v + ' kg' },
+      { key: 'cost',  label: 'Est. Cost', fmt: v => '₹ ' + v.toLocaleString('en-IN') },
+      { key: 'tonne', label: 'Tonne-km',  fmt: v => v.toLocaleString('en-IN') }
+    ];
+    const STRATS = ['Baseline', 'Optimised', 'Decentralised'];
+    const BAR_COLORS = ['bg-stone-400', 'bg-emerald-700', 'bg-amber-600'];
+
+    let currentStrategy = 'Baseline';
+    let mapInitialized = false, leafletMap = null, dashMap = null;
+    let currentDashLayerGroup = null, currentMainLayerGroup = null;
+
+    function currentZone() { return document.getElementById('zone-select').value; }
+
+    window.addEventListener('DOMContentLoaded', () => {
+      dashMap = L.map('dash-map', { zoomControl: false }).setView(ZONE_DATA['Vasant Kunj'].coords, 13);
+      L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
+        maxZoom: 19, attribution: '© OpenStreetMap contributors'
+      }).addTo(dashMap);
+      currentDashLayerGroup = L.layerGroup().addTo(dashMap);
+      updateMapLayers('Vasant Kunj', currentDashLayerGroup);
+      setStrategy('Baseline');
+      calculateEcoScore();
+      switchTab('dashboard');
+    });
+
+    function updateMapLayers(zoneName, layerGroup) {
+      layerGroup.clearLayers();
+      const info = ZONE_DATA[zoneName];
+      if (!info) return;
+      L.polygon(info.polygon, { color: '#047857', weight: 2, fillColor: '#34d399', fillOpacity: 0.3 })
+        .bindPopup(info.popupText).addTo(layerGroup);
+      L.polyline(info.route, { color: '#2563eb', weight: 3.5, dashArray: '4, 4' })
+        .bindPopup('Illustrative collection route').addTo(layerGroup);
+    }
+
+    function switchTab(tabName) {
+      ['dashboard', 'map', 'calculator', 'about'].forEach(t => {
+        document.getElementById('view-' + t).classList.add('hidden');
+        document.getElementById('nav-' + t).className =
+          "w-full flex items-center gap-3 px-4 py-2.5 hover:bg-stone-800/60 rounded-xl font-medium text-xs text-stone-300 text-left transition";
+      });
+      document.getElementById('view-' + tabName).classList.remove('hidden');
+      document.getElementById('nav-' + tabName).className =
+        "w-full flex items-center gap-3 px-4 py-2.5 bg-emerald-800/80 rounded-xl font-medium text-xs text-left text-white transition";
+
+      if (tabName === 'dashboard') {
+        setTimeout(() => { if (dashMap) dashMap.invalidateSize(); }, 150);
+      }
+      if (tabName === 'map') {
+        setTimeout(() => {
+          if (!mapInitialized) {
+            leafletMap = L.map('map').setView(ZONE_DATA[currentZone()].coords, 13);
+            L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
+              maxZoom: 19, attribution: '© OpenStreetMap contributors'
+            }).addTo(leafletMap);
+            currentMainLayerGroup = L.layerGroup().addTo(leafletMap);
+            mapInitialized = true;
+          }
+          leafletMap.setView(ZONE_DATA[currentZone()].coords, 13);
+          updateMapLayers(currentZone(), currentMainLayerGroup);
+          leafletMap.invalidateSize();
+        }, 150);
+      }
+    }
+
+    function setStrategy(strategy) {
+      currentStrategy = strategy;
+      STRATS.forEach(s => {
+        document.getElementById('tab-' + s).className = s === strategy
+          ? "px-3 py-1.5 rounded-lg transition bg-white shadow-sm text-emerald-950 font-semibold"
+          : "px-3 py-1.5 rounded-lg transition text-stone-600 font-medium";
+      });
+
+      const data = ZONE_DATA[currentZone()];
+      const idx = STRATS.indexOf(strategy);
+
+      // Metric cards: value + real % change versus baseline
+      document.getElementById('metric-cards').innerHTML = METRICS.map((m, i) => {
+        const base = data[m.key][0], val = data[m.key][idx];
+        const change = Math.round((val - base) / base * 100);
+        const note = idx === 0 ? 'Reference' : change + '% vs baseline';
+        const color = idx === 0 ? 'text-stone-500' : 'text-emerald-700';
+        return `<div class="bg-stone-50/70 border border-stone-200/60 p-3 rounded-xl text-center ${i === 4 ? 'col-span-2 sm:col-span-1' : ''}">
+          <p class="text-[10px] uppercase font-semibold text-stone-400">${m.label}</p>
+          <p class="text-lg font-bold text-stone-900 mt-1">${m.fmt(val)}</p>
+          <p class="text-[10px] ${color} font-medium mt-0.5">${note}</p></div>`;
+      }).join('');
+
+      // Bar chart is computed from the selected zone's data
+      document.getElementById('bar-chart').innerHTML = METRICS.map(m => {
+        const bars = data[m.key].map((v, j) =>
+          `<div style="height:${Math.round(v / data[m.key][0] * 100)}%" class="w-3 ${BAR_COLORS[j]} rounded-t" title="${STRATS[j]}: ${m.fmt(v)}"></div>`).join('');
+        return `<div><div class="h-28 flex items-end justify-center gap-1 bg-stone-50/50 rounded-xl p-2">${bars}</div>
+          <p class="text-[11px] font-medium text-stone-600 mt-2">${m.label}</p></div>`;
+      }).join('');
+    }
+
+    function runSimulation() {
+      const zone = currentZone();
+      const btn = document.getElementById('run-btn');
+      btn.textContent = "…";
+      setTimeout(() => {
+        btn.textContent = "Simulate";
+        document.getElementById('map-zone-label').textContent = zone + " (Active)";
+        setStrategy(currentStrategy);
+        const coords = ZONE_DATA[zone].coords;
+        if (dashMap) { dashMap.setView(coords, 13); updateMapLayers(zone, currentDashLayerGroup); }
+        if (leafletMap) { leafletMap.setView(coords, 13); updateMapLayers(zone, currentMainLayerGroup); }
+      }, 300);
+    }
+
+    function calculateEcoScore() {
+      const seg = parseInt(document.getElementById('calc-seg').value);
+      const mult = parseFloat(document.getElementById('calc-strat').value);
+      const ev = parseInt(document.getElementById('calc-ev').value);
+      document.getElementById('val-seg').textContent = seg;
+      document.getElementById('val-ev').textContent = ev;
+
+      const basePoints = Math.round(seg * 0.4);               // max 38
+      const stratBonus = Math.round((mult - 1) * 50) + 10;    // 10 / 25 / 40
+      const evBonus = Math.round(ev * 0.2);                   // max 20
+      const finalScore = Math.min(100, basePoints + stratBonus + evBonus);
+
+      document.getElementById('score-display').textContent = finalScore;
+      document.getElementById('header-score').textContent = finalScore;
+      document.getElementById('out-base').textContent = basePoints;
+      document.getElementById('out-strat').textContent = stratBonus;
+      document.getElementById('out-ev').textContent = evBonus;
+    }
+  </script>
+</body>
+</html>
